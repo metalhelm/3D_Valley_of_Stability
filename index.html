@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NuclideScape - 3D Isotope Voxel Explorer</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="webgl-canvas"></canvas>
+      <div id="ui-overlay">
+        <header class="header-panel" id="header-panel">
+          <div class="panel-top-row">
+            <div class="panel-title-group">
+              <h1>NuclideScape</h1>
+              <span class="collapsed-badge">Legend &amp; Controls</span>
+            </div>
+            <button id="btn-collapse-header" class="panel-collapse-btn" title="Shrink to small button (free up 3D view)" aria-label="Toggle upper panel">
+              <span class="collapse-icon">&minus;</span>
+            </button>
+          </div>
+          <div class="panel-collapsible-body" id="header-body">
+            <p class="subtitle" id="app-subtitle">3D Binding Energy Landscape &mdash; Valley of Stability (Logarithmic Canyon)</p>
+            <div class="stats-badge" id="stats-badge">Loading IAEA dataset (3,360 nuclides)...</div>
+            <div class="color-mode-bar">
+              <span class="scale-mode-label">Color Scheme:</span>
+              <div class="overlay-btn-group">
+                <button class="overlay-btn active" data-overlay="decay" title="Color by primary radioactive decay mode (or stable)">Decay Modes</button>
+                <button class="overlay-btn" id="btn-overlay-var" data-overlay="halflife" title="Thermal camera heatmap of nuclear half-life (Cold: Long t½ / Stable, Hot: Short t½)">Half-Life Heatmap</button>
+                <button class="overlay-btn" data-overlay="elevation" title="Thermal camera heatmap of 3D column elevation in current scale mode">Elevation Heatmap</button>
+              </div>
+            </div>
+            <div class="legend-container" id="legend-container">
+              <div class="legend-bar" id="legend-decay">
+                <span class="legend-item"><span class="legend-dot dot-stable"></span> Stable</span>
+                <span class="legend-item"><span class="legend-dot dot-betaminus"></span> &beta;<sup>&minus;</sup></span>
+                <span class="legend-item"><span class="legend-dot dot-betaplus"></span> &beta;<sup>+</sup> / EC</span>
+                <span class="legend-item"><span class="legend-dot dot-alpha"></span> &alpha;</span>
+                <span class="legend-item"><span class="legend-dot dot-sf"></span> SF</span>
+                <span class="legend-item"><span class="legend-dot dot-proton"></span> p</span>
+                <span class="legend-item"><span class="legend-dot dot-neutron"></span> n</span>
+              </div>
+              <div class="legend-bar legend-thermal" id="legend-thermal" style="display: none;">
+                <div class="thermal-scale-wrapper">
+                  <div class="thermal-labels-row">
+                    <span class="thermal-label" id="thermal-label-cold">Stable</span>
+                    <span class="thermal-label" id="thermal-label-hot">Hot (~10<sup>&minus;22</sup> s)</span>
+                  </div>
+                  <div class="thermal-gradient-bar" id="thermal-gradient-bar" title="Thermal colormap gradient"></div>
+                  <div class="thermal-ticks-row" id="thermal-ticks-row">
+                    <!-- Updated dynamically in main.ts -->
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="scale-mode-bar">
+              <div class="scale-control-group">
+                <span class="scale-mode-label" id="scale-mode-label">Elevation Scale:</span>
+                <div class="scale-btn-group">
+                  <button class="scale-btn active" data-scale="log" title="Shifted Logarithmic: High canyon sensitivity, gracefully compressed light nuclei">Log Canyon</button>
+                  <button class="scale-btn" data-scale="sqrt" title="Power / Square Root: Sub-linear canyon walls">Power (&radic;&Delta;B)</button>
+                  <button class="scale-btn" data-scale="linear" title="Direct Linear: Unscaled physical binding energy difference">Linear</button>
+                </div>
+              </div>
+              <div class="scale-bar-divider" aria-hidden="true"></div>
+              <div class="scale-control-group">
+                <label for="height-mag-slider" class="scale-mode-label">Height Magnification:</label>
+                <div class="mag-slider-container">
+                  <input
+                    type="range"
+                    id="height-mag-slider"
+                    min="0.5"
+                    max="5"
+                    step="any"
+                    value="1"
+                    title="Vertical height magnification (0.5x to 5.0x, continuous fine scale)"
+                  />
+                  <input
+                    type="number"
+                    id="height-mag-input"
+                    min="0.5"
+                    max="5"
+                    step="any"
+                    value="1.00"
+                    class="mag-number-input"
+                    title="Direct magnification value (0.5 to 5.0, double-click to reset)"
+                  />
+                  <span class="mag-unit">&times;</span>
+                </div>
+              </div>
+              <div class="scale-bar-divider" aria-hidden="true"></div>
+              <div class="scale-control-group">
+                <button
+                  id="toggle-invert-mode"
+                  class="feature-toggle-btn"
+                  title="Swap height map and color scheme: Height represents Half-Life and Color represents Binding Energy"
+                >
+                  <span class="toggle-icon">⇄</span>
+                  <span id="invert-btn-text">Invert Height &amp; Color</span>
+                </button>
+                <button
+                  id="toggle-magic-numbers"
+                  class="feature-toggle-btn active"
+                  title="Toggle white translucent contour overlay on proton & neutron magic numbers (2, 8, 20, 28, 50, 82, 126)"
+                >
+                  <span class="magic-sparkle">✨</span>
+                  <span>Magic Numbers</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <div class="hud-panel" id="isotope-hud">
+          <div class="panel-top-row">
+            <div class="panel-title-group">
+              <h3 id="hud-title">Explore the Landscape</h3>
+              <span class="collapsed-badge">Isotope Info</span>
+            </div>
+            <button id="btn-collapse-hud" class="panel-collapse-btn" title="Shrink to small button (free up 3D view)" aria-label="Toggle lower panel">
+              <span class="collapse-icon">&minus;</span>
+            </button>
+          </div>
+          <div class="panel-collapsible-body" id="hud-body">
+            <p id="hud-details">Hover over any isotope column to view binding energy & details.</p>
+            <div class="controls-guide">
+              <span class="key-badge">WASD</span>: Fly &nbsp;|&nbsp;
+              <span class="key-badge">Space</span>: Ascend &nbsp;|&nbsp;
+              <span class="key-badge">Ctrl / C</span>: Descend &nbsp;|&nbsp;
+              <span class="key-badge">Shift</span>: Fast &nbsp;|&nbsp;
+              <span class="key-badge">Mouse Drag</span>: Look (In-Place) &nbsp;|&nbsp;
+              <span class="key-badge">Scroll</span>: Zoom
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
